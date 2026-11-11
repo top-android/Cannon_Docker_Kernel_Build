@@ -22,7 +22,10 @@ GCC32=$TOOLCHAIN/gcc32
 export PATH="$CLANG/bin:$GCC64/bin:$GCC32/bin:$PATH"
 export CCACHE_DIR=$TOOLCHAIN/.ccache
 export USE_CCACHE=1
-export BUILD_NUMBER=${BUILD_NUMBER:-$(date +%Y%m%d)}
+# 不要 export BUILD_NUMBER：本内核 Makefile 里有
+#   ifneq (,$(BUILD_NUMBER)) UTS_RELEASE=$(KERNELRELEASE)-ab$(BUILD_NUMBER)
+# 会把版本串变成 4.14.336-ab20261111（看起来像哈希），固定为干净的 4.14.336
+unset BUILD_NUMBER
 # ★ 固定 #1：不设的话 scripts/mkcompile_h 会读 .version 自增，越编越大
 export KBUILD_BUILD_VERSION=1
 
@@ -88,6 +91,7 @@ declare -A MAP=(
     [next-susfs]=Susfs.zip
     [next-susfs-new]=SusfsNew.zip
     [cannon-a17-susfs-new]=SusfsNew.zip
+    [twrp-cannon]=TwrpKernel.zip
 )
 declare -A LABEL=(
     [lineage-21-cannon]="无 KernelSU"
@@ -96,6 +100,7 @@ declare -A LABEL=(
     [next-susfs]="KernelSU-Next + SUSFS"
     [next-susfs-new]="KernelSU-Next v3.4.2 + SUSFS v2.3.0"
     [cannon-a17-susfs-new]="A17: KernelSU-Next v3.4.2 + SUSFS v2.3.0（新协议）"
+    [twrp-cannon]="TWRP 专用：A17 基线，关闭 hung_task/oops/softlockup panic"
 )
 
 BRANCHES=("$@")
