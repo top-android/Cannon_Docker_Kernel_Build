@@ -1,8 +1,12 @@
 #!/bin/bash
-# cannon (MT6853T) 内核单独编译 —— 四个分支，产物为 AnyKernel3 可刷 zip
+# cannon (MT6853T) 内核单独编译 —— 多分支，产物为 AnyKernel3 可刷 zip
 #
-# 用法：  ./build.sh              编全部四个分支
+# 用法：  ./build.sh              编全部已登记分支
 #         ./build.sh next ksu     只编指定的
+#         ./build.sh cannon-a17-susfs-new   只编 A17 + KSU-Next + SUSFS 新协议
+#
+# 工具链：clang 用源码树 prebuilts 的 clang-r596125（clang 22.0.2，A17），
+#         GCC 4.9 仅作 CROSS_COMPILE 前缀；历史版本下载地址见 Dockerfile / README。
 #
 set +u   # 不要开 set -u，下面有大量可选变量
 
@@ -83,6 +87,7 @@ declare -A MAP=(
     [ksu]=Su.zip
     [next-susfs]=Susfs.zip
     [next-susfs-new]=SusfsNew.zip
+    [cannon-a17-susfs-new]=SusfsNew.zip
 )
 declare -A LABEL=(
     [lineage-21-cannon]="无 KernelSU"
@@ -90,6 +95,7 @@ declare -A LABEL=(
     [ksu]="KernelSU v0.9.5"
     [next-susfs]="KernelSU-Next + SUSFS"
     [next-susfs-new]="KernelSU-Next v3.4.2 + SUSFS v2.3.0"
+    [cannon-a17-susfs-new]="A17: KernelSU-Next v3.4.2 + SUSFS v2.3.0（新协议）"
 )
 
 BRANCHES=("$@")
@@ -101,7 +107,16 @@ for br in "${BRANCHES[@]}"; do
 done
 
 # 编完切回主分支，避免之后在源码树里 m bootimage 时把 KernelSU 内核打进去
-cd "$KERNEL" && git checkout -f lineage-21-cannon >/dev/null 2>&1
+# repo sync 出来的树通常是 detached HEAD，这里优先回到本地分支，再退回远端分支
+cd "$KERNEL" && {
+    git checkout -f lineage-24.0-cannon >/dev/null 2>&1 && echo "  已切回 lineage-24.0-cannon"
+} || {
+    for r in origin devs m; do
+        if git checkout -f "$r/lineage-24.0-cannon" >/dev/null 2>&1; then
+            echo "  已切回 $r/lineage-24.0-cannon（detached）"; break
+        fi
+    done
+}
 
 echo ""
 echo "========================================"
