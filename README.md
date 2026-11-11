@@ -1,24 +1,25 @@
 # Cannon Docker Kernel Build
 
 Redmi Note 9T 5G（cannon / cannong，MT6853T）的**内核单独编译**环境。
-不依赖 LineageOS 源码树，一把出五个分支的内核，打成 AnyKernel3 可刷 zip。
+不依赖 LineageOS 源码树，一把出多分支的内核，打成 AnyKernel3 可刷 zip。
 
 > 只想换内核、不想动 system 的话用这个；要出整包 ROM 请用
 > [top-android/cannon-build](https://github.com/top-android/cannon-build)。
 
 ## 和源码树内编译的关系
 
-工具链**已经对齐**（2026-10-28 更新）：
+工具链**已经对齐**（2026-11-11 更新到 A17）：
 
 | 项 | 源码树 | 本仓库 |
 |---|---|---|
-| Clang | `clang-r487747c`（Android clang 17.0.2） | 同 |
+| Clang | `clang-r596125`（Android clang 22.0.2） | 同 |
 | GCC | 4.9（`aarch64` / `arm`） | 同 |
 | 内核版本串 | `4.14.336 #1 ...` | 同（`KBUILD_BUILD_VERSION=1`） |
 | 产物 | `boot.img`（内核+ramdisk） | AnyKernel3 zip（只换内核） |
 
 之前用的是 2021 年的 clang 归档（r383902 时代），已弃用 —— 编译器不一致会导致
-「独立编的能用、ROM 里编的不能用」这类很难查的问题。
+「独立编的能用、ROM 里编的不能用」这类很难查的问题。LOS 21 时代用过 `r487747c`
+（clang 17.0.2），A17 起统一换成 `r596125`，旧版本下载地址保留在下方注释里。
 
 ## 环境准备
 
@@ -36,23 +37,33 @@ mkdir -p /cannon && cd /cannon
 ### 1. Clang（必须和源码树一致）
 
 ```bash
-# 方式 A（推荐）：从已经同步好的 LOS 源码树直接拷
-cp -r /cannon/rom/prebuilts/clang/host/linux-x86/clang-r487747c /cannon/clang
+# 方式 A（推荐）：从已经同步好的 LOS 源码树直接软链/拷贝
+ln -s /cannon/rom/prebuilts/clang/host/linux-x86/clang-r596125 /cannon/clang
+# 或：cp -r /cannon/rom/prebuilts/clang/host/linux-x86/clang-r596125 /cannon/clang
 
-# 方式 B：钉死提交号直接下（解压后 324 MB，和树里那份完全一样）
+# 方式 B：钉死提交号直接下（解压后 300+ MB，和树里那份完全一样）
 wget -O /tmp/clang.tgz \
-  'https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/7154d3eddcb62ff7909a6ae2bf0c03e445e65bc4/clang-r487747c.tar.gz'
+  'https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/e7a1fa9e953f2d3ffba29f1436e9124977df813c/clang-r596125.tar.gz'
 mkdir -p /cannon/clang && tar -C /cannon/clang -zxf /tmp/clang.tgz
 ```
 
 > `+archive/<commit>/<dir>.tar.gz` 这种形式才能只取一个目录；写成 `+archive/<branch>/<dir>.tar.gz` 会 400。
-> `7154d3ed…` 是 LOS 21 树里 `prebuilts/clang/host/linux-x86` 的提交，不要随便换。
+> `e7a1fa9e…` 是 AOSP 标签 `android-17.0.0_r1` 下 `prebuilts/clang/host/linux-x86` 的提交，不要随便换。
+
+历史版本下载地址（编旧基线内核时替换上面的 URL 和 `clang-rXXXX`）：
+
+| ROM 基线 | Clang 版本 | 下载地址 |
+|---|---|---|
+| LOS 21 / Android 14 | `clang-r487747c`（17.0.2） | `+archive/7154d3eddcb62ff7909a6ae2bf0c03e445e65bc4/clang-r487747c.tar.gz` |
+| LOS 22 / Android 15 | `clang-r547379`（20.0.0） | `+archive/refs/tags/android-16.0.0_r1/clang-r547379.tar.gz` |
+| LOS 23 / Android 16 | `clang-r584948`（22.0.0） | `+archive/refs/tags/android-16.0.0_r1/clang-r584948.tar.gz` |
+| LOS 24 / Android 17 | `clang-r596125`（22.0.2） | `+archive/e7a1fa9e953f2d3ffba29f1436e9124977df813c/clang-r596125.tar.gz` |
 
 验证：
 
 ```bash
 /cannon/clang/bin/clang --version | head -1
-# 期望：Android (10087095, ...) clang version 17.0.2 ... based on r487747c
+# 期望：Android (15071444, ...) clang version 22.0.2 ... based on r596125
 ```
 
 ### 2. GCC 4.9（只用作 CROSS_COMPILE 前缀）
@@ -87,9 +98,9 @@ unzip -q /tmp/config.zip -d /cannon && rm -f /tmp/config.zip
 
 ```bash
 cd /cannon
-git clone git@github.com:top-android/android_kernel_xiaomi_cannon.git kernel
+git clone https://github.com/top-android/android_kernel_xiaomi_cannon.git kernel
 cd kernel && git branch -a
-# 应该看到：lineage-21-cannon / next / ksu / next-susfs / next-susfs-new
+# 应该看到：lineage-21-cannon / next / ksu / next-susfs / next-susfs-new / cannon-a17-susfs-new
 ```
 
 ## 目录结构
@@ -97,8 +108,8 @@ cd kernel && git branch -a
 ```text
 /cannon/
 ├── build.sh          编译脚本
-├── kernel/           内核源码（五分支）
-├── clang/            clang-r487747c
+├── kernel/           内核源码（多分支，可软链到 ROM 树内的 kernel/xiaomi/cannon）
+├── clang/            clang-r596125（A17；旧版本地址见上文）
 ├── gcc64/ gcc32/     GCC 4.9
 ├── Anykernel/        AnyKernel3
 ├── out/              编译中间产物（每次重建）
@@ -110,8 +121,9 @@ cd kernel && git branch -a
 
 ```bash
 cd /cannon
-./build.sh                  # 五个分支全编
+./build.sh                  # 全部登记分支
 ./build.sh next ksu         # 只编指定的
+./build.sh cannon-a17-susfs-new   # 只编 A17 + KSU-Next + SUSFS 新协议
 ```
 
 输出：
@@ -123,6 +135,7 @@ cd /cannon
 | `ksu` | `dist/Su.zip` | KernelSU v0.9.5 |
 | `next-susfs` | `dist/Susfs.zip` | KernelSU-Next + SUSFS（旧版 1.x 协议） |
 | `next-susfs-new` | `dist/SusfsNew.zip` | KernelSU-Next v3.4.2 + SUSFS v2.3.0（新 reboot 超调用协议） |
+| `cannon-a17-susfs-new` | `dist/SusfsNew.zip` | A17 基线 + KernelSU-Next v3.4.2 + SUSFS v2.3.0（新协议） |
 
 ### `next-susfs-new` 有什么不同
 
@@ -163,11 +176,14 @@ export KBUILD_BUILD_VERSION=1
 - `CONFIG_LOCALVERSION="-God"` → 出现 `-God`
 - 缺 `# CONFIG_LOCALVERSION_AUTO is not set` → 该选项默认 `y`，`git describe` 把 commit 哈希带出来
 
-`lineage-21-cannon` / `next` / `ksu` / `next-susfs` 四个分支的 defconfig 完全一致
+`lineage-21-cannon` / `next` / `ksu` / `next-susfs` 四个旧基线分支的 defconfig 完全一致
 （md5 都是 `e7a04a2113d79ea77ad0dd82b186ad8a`），版本串是干净的 `4.14.336`。
 
 `next-susfs-new` 的 md5 是 `d09afffbfcc3f7cc43ffc3ac33051b1a` —— 差异**只**在文件末尾多了
 7 行 `CONFIG_KSU_SUSFS_*`，版本串同样是 `4.14.336`，没有 `-God` / `-g<hash>`。
+
+`cannon-a17-susfs-new` 从 `lineage-24.0-cannon` 派生，defconfig 以 A17（hung_task 取证 +
+console 日志）为底，再叠加 `CONFIG_KSU*` / `CONFIG_KSU_SUSFS_*`；编出来同样是干净 `4.14.336`。
 
 如果以后又从别的分支拉代码，记得检查 defconfig 第 2 行。
 
@@ -177,7 +193,7 @@ export KBUILD_BUILD_VERSION=1
 
 ### 编完自动切回主分支
 
-脚本最后会 `git checkout -f lineage-21-cannon`。否则内核仓库停在 KernelSU 分支上，
+脚本最后会 `git checkout -f lineage-24.0-cannon`。否则内核仓库停在 KernelSU 分支上，
 之后在源码树里 `m bootimage` 会把 KernelSU 内核打进 `boot.img`。
 
 ## 刷入
@@ -195,4 +211,4 @@ adb sideload God.zip
 
 - 只出 `Image.gz`，不带 `dtbo` / `vbmeta`。换内核不需要动这些。
 - AnyKernel3 的 `anykernel.sh` 来自 [GTian5418/AnyKernel3](https://github.com/GTian5418/AnyKernel3) 的 `cannon` 分支，设备名、分区布局都在里面。
-- 内核源码变更后记得 `git pull`，五个分支要一起拉。
+- 内核源码变更后记得 `git pull`，各分支要一起拉。
